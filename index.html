@@ -250,10 +250,9 @@
 
 <script>
     // =========================================================================
-    // LINKS CSV DIRETOS DO GOOGLE SHEETS FORNECIDOS PELA FAST TENNIS
+    // URL DO EXCEL COMPLETO NO GOOGLE DRIVE (OUTPUT=XLSX PARA LER LINHAS OCULTAS)
     // =========================================================================
-    const URL_IMPLANTACAO = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRksu0DDNfpfwMZx6TTKNwdMR0Yf7ks3VWYV64z-5OPgiE9czUV_l1KGLDcFZC8Q/pub?gid=1910248113&single=true&output=csv";
-    const URL_OPERACAO = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRksu0DDNfpfwMZx6TTKNwdMR0Yf7ks3VWYV64z-5OPgiE9czUV_l1KGLDcFZC8Q/pub?gid=688782685&single=true&output=csv";
+    const RAW_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRksu0DDNfpfwMZx6TTKNwdMR0Yf7ks3VWYV64z-5OPgiE9czUV_l1KGLDcFZC8Q/pub?output=xlsx";
 
     let dataImp = [];
     let dataOp = [];
@@ -266,71 +265,94 @@
     };
 
     // ==========================================
-    // BUSCA AUTOMÁTICA NO GOOGLE DRIVE VIA CSV (SEM BLOQUEIO CORS!)
+    // BUSCA AUTOMÁTICA NO GOOGLE DRIVE VIA MULTI-PROXY
     // ==========================================
     async function loadGoogleSheetsData() {
         document.getElementById('sync-dot').classList.remove('online', 'error');
         document.getElementById('sync-title').innerText = "Sincronizando com o Drive...";
-        document.getElementById('sync-desc').innerText = "Conectando ao servidor oficial do Google Sheets...";
+        document.getElementById('sync-desc').innerText = "Conectando ao melhor servidor...";
+
+        const ts = new Date().getTime();
+        const targetUrl = `${RAW_URL}&t=${ts}`;
+        
+        const proxies = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+            `https://thingproxy.freeboard.io/fetch/${targetUrl}`
+        ];
+
+        let arrayBuffer = null;
+        let proxySuccess = false;
+
+        for (let url of proxies) {
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    arrayBuffer = await res.arrayBuffer();
+                    proxySuccess = true;
+                    break; 
+                }
+            } catch (e) {
+                console.warn("Proxy falhou, tentando o próximo...", url);
+            }
+        }
+
+        if (!proxySuccess || !arrayBuffer) {
+            document.getElementById('sync-title').innerText = "Aviso de Conexão";
+            document.getElementById('sync-dot').classList.add('error');
+            document.getElementById('sync-desc').innerHTML = "<span style='color:#EF4444; font-weight:bold;'>Falha na sincronização. O Google bloqueou a conexão automática no momento. Tente atualizar a página.</span>";
+            return;
+        }
 
         try {
-            const ts = new Date().getTime(); // Evita cache
+            const workbook = XLSX.read(arrayBuffer, {type: 'array'});
             
-            const [resImp, resOp] = await Promise.all([
-                fetch(`${URL_IMPLANTACAO}&t=${ts}`),
-                fetch(`${URL_OPERACAO}&t=${ts}`)
-            ]);
-            
-            if (!resImp.ok || !resOp.ok) throw new Error("Falha ao baixar CSV");
+            const sheetImp = workbook.Sheets['Implantação'];
+            if (sheetImp) parseImplantacao(sheetImp);
 
-            const csvImp = await resImp.text();
-            const csvOp = await resOp.text();
+            const sheetOp = workbook.Sheets['Operação'];
+            if (sheetOp) parseOperacao(sheetOp);
 
-            Papa.parse(csvImp, {
-                complete: function(results) { parseImplantacao(results.data); }
-            });
-
-            Papa.parse(csvOp, {
-                complete: function(results) { 
-                    parseOperacao(results.data); 
-                    finishSync();
-                }
-            });
-
-        } catch (err) {
-            console.error("Erro ao sincronizar:", err);
+            finishSync();
+        } catch (error) {
+            console.error(error);
             document.getElementById('sync-title').innerText = "Erro na Leitura";
             document.getElementById('sync-dot').classList.add('error');
-            document.getElementById('sync-desc').innerHTML = "<span style='color:#EF4444; font-weight:bold;'>Houve um erro de rede. Tente atualizar a página.</span>";
+            document.getElementById('sync-desc').innerText = "Formato de arquivo incompatível baixado pelo proxy.";
         }
     }
 
     function finishSync() {
         document.getElementById('sync-dot').classList.add('online');
         document.getElementById('sync-dot').classList.remove('error');
-        document.getElementById('sync-title').innerText = `Banco de Dados Sincronizado e Ativo!`;
+        document.getElementById('sync-title').innerText = `Banco de Dados Sincronizado!`;
         
         let d = new Date();
         let dateStr = d.toLocaleDateString('pt-BR');
         let hr = d.getHours().toString().padStart(2, '0') + ":" + d.getMinutes().toString().padStart(2, '0');
         
-        document.getElementById('sync-desc').innerText = `O sistema ignora os inativos. Última sincronização: Hoje às ${hr}`;
+        document.getElementById('sync-desc').innerText = `O sistema ignora os inativos. Última sincronização online: Hoje às ${hr}`;
         document.getElementById('top-update-time').innerHTML = `⏱️ Atualizado: ${dateStr} às ${hr}`;
 
         document.getElementById('count-imp').textContent = dataImp.length;
         document.getElementById('count-op').textContent = dataOp.length;
         setTab('implantação');
-        showToast("✅ Base de dados atualizada!");
+        showToast("✅ Base de dados atualizada e limpa!");
     }
 
     // ==========================================
-    // PARSERS (LEITURA COM TRAVAS E PREENCHIMENTO)
+    // PARSERS (LEITURA COM VERIFICAÇÃO DE LINHA OCULTA E TRAVAS)
     // ==========================================
-    function parseImplantacao(rows) {
+    function parseImplantacao(sheet) {
         dataImp = [];
+        const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, blankrows: true, defval: ""});
+        const rowInfos = sheet['!rows'] || [];
+
         let lastEstado = "", lastLocal = "", lastCidade = "", lastFase = "", lastEndereco = "";
         
-        for (let i = 2; i < rows.length; i++) { // Pula o cabeçalho
+        for (let i = 2; i < rows.length; i++) {
+            if (rowInfos[i] && rowInfos[i].hidden) continue;
+
             const row = rows[i];
             if (!row || row.length < 5) continue;
             
@@ -338,10 +360,10 @@
             let estado = String(row[1] || "").trim();
             let local = String(row[2] || "").trim();
             let cidade = String(row[3] || "").trim();
-            let franqueado = String(row[5] || "").trim(); // Coluna F
-            let email = String(row[6] || "").trim();      // Coluna G
-            let telefone = String(row[7] || "").trim();   // Coluna H
-            let endereco = String(row[8] || "").trim();   // Coluna I
+            let franqueado = String(row[5] || "").trim(); 
+            let email = String(row[6] || "").trim();      
+            let telefone = String(row[7] || "").trim();   
+            let endereco = String(row[8] || "").trim();   
             
             if (fase) lastFase = fase; else fase = lastFase;
             if (estado) lastEstado = estado; else estado = lastEstado;
@@ -349,7 +371,6 @@
             if (cidade) lastCidade = cidade; else cidade = lastCidade;
             if (endereco) lastEndereco = endereco; else endereco = lastEndereco;
             
-            // Trava de segurança para ignorar pausados, cancelados e vazios
             let fLow = fase.toLowerCase();
             if (fLow.includes('pausado') || fLow.includes('standy') || fLow.includes('repassad') || fLow.includes('cancelad')) continue;
 
@@ -366,21 +387,26 @@
         }
     }
 
-    function parseOperacao(rows) {
+    function parseOperacao(sheet) {
         dataOp = [];
+        const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, blankrows: true, defval: ""});
+        const rowInfos = sheet['!rows'] || [];
+
         let lastEstado = "", lastCidade = "", lastUnidade = "", lastEndereco = "";
         
-        for (let i = 1; i < rows.length; i++) { // Pula a primeira linha
+        for (let i = 1; i < rows.length; i++) {
+            if (rowInfos[i] && rowInfos[i].hidden) continue;
+
             const row = rows[i];
             if (!row || row.length < 5) continue;
             
-            let estado = String(row[0] || "").trim();     // Coluna A
-            let cidade = String(row[1] || "").trim();     // Coluna B
-            let unidade = String(row[2] || "").trim();    // Coluna C
-            let franqueado = String(row[9] || "").trim(); // Coluna J
-            let email = String(row[11] || "").trim();     // Coluna L
-            let telefone = String(row[12] || "").trim();  // Coluna M
-            let endereco = String(row[13] || "").trim();  // Coluna N
+            let estado = String(row[0] || "").trim();     
+            let cidade = String(row[1] || "").trim();     
+            let unidade = String(row[2] || "").trim();    
+            let franqueado = String(row[9] || "").trim(); 
+            let email = String(row[11] || "").trim();     
+            let telefone = String(row[12] || "").trim();  
+            let endereco = String(row[13] || "").trim();  
             
             if (estado) lastEstado = estado; else estado = lastEstado;
             if (cidade) lastCidade = cidade; else cidade = lastCidade;
@@ -394,8 +420,8 @@
             dataOp.push({
                 fase_norm: "Operação",
                 estado: lastEstado,
-                cidade: lastCidade,   // Mantendo Cidade real (Col B)
-                local: lastUnidade,   // Unidade mapeada (Col C)
+                cidade: lastCidade,   
+                local: lastUnidade,   
                 franqueado, email, telefone, endereco: lastEndereco
             });
         }
@@ -471,7 +497,7 @@
 
         const tbody = document.getElementById('table-body');
         if (currentData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px; font-weight:bold; color:var(--text-light);">Nenhum registro encontrado.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px; font-weight:bold; color:var(--text-light);">Aguardando dados ou nenhum registro encontrado.</td></tr>`;
             return;
         }
 
@@ -491,7 +517,7 @@
                     <td class="copyable" onclick="copyText('${item.email}', 'E-mail')" title="Clique para copiar este E-mail">${item.email || '-'}</td>
                     <td class="copyable" onclick="copyText('${item.telefone}', 'Telefone')" title="Clique para copiar este Telefone">${item.telefone || '-'}</td>
                     <td style="text-align:center;">
-                        <button class="btn-copy-row" onclick="copyRow(${idx})" title="Copiar Linha p/ Excel">📋 Copiar Linha</button>
+                        <button class="btn-copy-row" onclick="copyRow(${idx})" title="Copiar os dados organizados em texto">📋 Copiar Dados</button>
                     </td>
                 </tr>
             `;
@@ -528,7 +554,7 @@
             }));
         } else {
             exportData = currentData.map(d => ({
-                "Cidade": d.local || '', // Coluna C (Nome da unidade / Local)
+                "Cidade": d.local || '', 
                 "Franqueado": d.franqueado || '',
                 "E-mail": d.email || '',
                 "Unidade": "Ongoing"
@@ -553,15 +579,17 @@
         let text = "";
 
         if (currentTab === 'implantação') {
-            // Nome do franqueado, cidade, telefone e email
-            text = `${d.franqueado || '-'}\t${d.cidade || '-'}\t${d.telefone || '-'}\t${d.email || '-'}`;
+            text = `👤 Franqueado: ${d.franqueado || '-'}\n🏙️ Cidade/Local: ${d.cidade || '-'}\n📞 Telefone: ${d.telefone || '-'}\n📧 E-mail: ${d.email || '-'}`;
         } else {
-            // nome da unidade, telefone, endereço, email e nome do franqueado
-            text = `${d.local || '-'}\t${d.telefone || '-'}\t${d.endereco || '-'}\t${d.email || '-'}\t${d.franqueado || '-'}`;
+            let localName = d.local || '-';
+            if (localName !== '-' && !localName.toLowerCase().includes('fast tennis')) {
+                localName = 'Fast Tennis ' + localName;
+            }
+            text = `🎾 Unidade: ${localName}\n📞 Telefone: ${d.telefone || '-'}\n📍 Endereço: ${d.endereco || '-'}\n📧 E-mail: ${d.email || '-'}\n👤 Franqueado: ${d.franqueado || '-'}`;
         }
 
         navigator.clipboard.writeText(text).then(() => {
-            showToast(`✅ Linha copiada! Use Ctrl+V no Excel.`);
+            showToast(`✅ Dados copiados! Pronto para colar no WhatsApp/E-mail.`);
         });
     }
 
@@ -594,7 +622,7 @@
         if (lines.length > 0) {
             let joinChar = type === 'address' ? '\n\n' : '\n';
             navigator.clipboard.writeText(lines.join(joinChar)).then(() => {
-                showToast(`✅ ${lines.length} itens copiados!`);
+                showToast(`✅ ${lines.length} itens copiados! Use Ctrl+V no Excel.`);
             });
         }
     }
