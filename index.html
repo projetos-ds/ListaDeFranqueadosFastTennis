@@ -10,9 +10,9 @@
     <style>
         :root {
             /* Cores Oficiais Fast Tennis */
-            --primary: #1E46C5;        /* Azul Fast Tennis */
-            --secondary: #122B7A;      /* Azul Secundário */
-            --accent: #19F000;         /* Verde Destaque */
+            --primary: #1E46C5;        
+            --secondary: #122B7A;      
+            --accent: #19F000;         
             --accent-hover: #14C000;   
             --bg: #F4F6FA;             
             --card-bg: rgba(255, 255, 255, 0.95); 
@@ -70,6 +70,7 @@
         
         .status-dot { display: inline-block; width: 10px; height: 10px; background-color: #F59E0B; border-radius: 50%; animation: pulse 1.5s infinite; }
         .status-dot.online { background-color: var(--accent); animation: none; }
+        .status-dot.error { background-color: #EF4444; animation: none; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
         .btn-sync {
@@ -131,7 +132,6 @@
         .st-fase2 { background: #DBEAFE; color: #1D4ED8; border: 1px solid #BFDBFE;}
         .st-op { background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0;}
 
-        /* AÇÃO INDIVIDUAL CLICÁVEL */
         .copyable { cursor: pointer; transition: all 0.2s; position: relative; }
         .copyable:hover { background-color: rgba(30, 70, 197, 0.1); font-weight: 600; color: var(--primary); }
 
@@ -172,8 +172,8 @@
     <!-- SESSÃO DE SINCRONIZAÇÃO AUTOMÁTICA -->
     <div class="sync-panel">
         <div class="sync-info">
-            <h2><span id="sync-dot" class="status-dot"></span> <span id="sync-title">Sincronização Ao Vivo</span></h2>
-            <p id="sync-desc">Conectando ao Google Drive da Fast Tennis.</p>
+            <h2><span id="sync-dot" class="status-dot"></span> <span id="sync-title">Sincronizando Banco de Dados...</span></h2>
+            <p id="sync-desc">Conectando ao Google Drive da Fast Tennis. Buscando o melhor servidor...</p>
         </div>
         <button class="btn-sync" onclick="loadGoogleSheetsData()">🔄 Atualizar Agora</button>
     </div>
@@ -249,11 +249,8 @@
 <div id="toast" class="toast">Ação realizada com sucesso!</div>
 
 <script>
-    // =========================================================================
-    // URL DO EXCEL COMPLETO NO GOOGLE DRIVE (OUTPUT=XLSX PARA LER LINHAS OCULTAS)
-    // =========================================================================
-    const URL_PLANILHA_XLSX = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRksu0DDNfpfwMZx6TTKNwdMR0Yf7ks3VWYV64z-5OPgiE9czUV_l1KGLDcFZC8Q/pub?output=xlsx";
-    // =========================================================================
+    // URL Direta para Baixar o Excel do Google Sheets
+    const RAW_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRksu0DDNfpfwMZx6TTKNwdMR0Yf7ks3VWYV64z-5OPgiE9czUV_l1KGLDcFZC8Q/pub?output=xlsx";
 
     let dataImp = [];
     let dataOp = [];
@@ -266,26 +263,49 @@
     };
 
     // ==========================================
-    // BUSCA AUTOMÁTICA NO GOOGLE DRIVE VIA PROXY
+    // SISTEMA MULTI-PROXY (Garante 100% de Conexão)
     // ==========================================
     async function loadGoogleSheetsData() {
-        document.getElementById('sync-dot').classList.remove('online');
+        document.getElementById('sync-dot').classList.remove('online', 'error');
         document.getElementById('sync-title').innerText = "Sincronizando com o Drive...";
-        document.getElementById('sync-desc').innerText = "Baixando dados mais recentes...";
+        document.getElementById('sync-desc').innerText = "Conectando ao melhor servidor...";
+
+        const ts = new Date().getTime();
+        const targetUrl = `${RAW_URL}&t=${ts}`;
+        
+        // Lista de Proxies para Burlar o CORS do Google
+        const proxies = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+            `https://thingproxy.freeboard.io/fetch/${targetUrl}`
+        ];
+
+        let arrayBuffer = null;
+        let proxySuccess = false;
+
+        for (let url of proxies) {
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    arrayBuffer = await res.arrayBuffer();
+                    proxySuccess = true;
+                    break; 
+                }
+            } catch (e) {
+                console.warn("Proxy falhou, tentando o próximo...", url);
+            }
+        }
+
+        if (!proxySuccess || !arrayBuffer) {
+            document.getElementById('sync-title').innerText = "Aviso de Conexão";
+            document.getElementById('sync-dot').classList.add('error');
+            document.getElementById('sync-desc').innerHTML = "<span style='color:#EF4444; font-weight:bold;'>Todos os servidores de download falharam. O Google pode ter bloqueado temporariamente o link. Tente atualizar a página.</span>";
+            return;
+        }
 
         try {
-            const ts = new Date().getTime();
-            const targetUrl = `${URL_PLANILHA_XLSX}&t=${ts}`;
-            
-            // Proxy CORS (Fundamental para puxar o XLSX de outro servidor sem erro do navegador)
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-            const res = await fetch(proxyUrl);
-            
-            if (!res.ok) throw new Error("Falha no download via proxy");
-            
-            const arrayBuffer = await res.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
-
+            
             const sheetImp = workbook.Sheets['Implantação'];
             if (sheetImp) parseImplantacao(sheetImp);
 
@@ -293,31 +313,30 @@
             if (sheetOp) parseOperacao(sheetOp);
 
             finishSync();
-
-        } catch (err) {
-            console.error("Erro ao sincronizar:", err);
-            document.getElementById('sync-title').innerText = "Aviso de Conexão";
-            document.getElementById('sync-dot').style.backgroundColor = "#EF4444";
-            document.getElementById('sync-desc').innerHTML = "<span style='color:#D97706;'>Erro ao acessar a planilha do Google. Tente atualizar a página.</span>";
+        } catch (error) {
+            console.error(error);
+            document.getElementById('sync-title').innerText = "Erro na Leitura";
+            document.getElementById('sync-dot').classList.add('error');
+            document.getElementById('sync-desc').innerText = "A planilha foi baixada, mas o formato está incorreto. Verifique a formatação do arquivo original.";
         }
     }
 
     function finishSync() {
         document.getElementById('sync-dot').classList.add('online');
-        document.getElementById('sync-dot').style.backgroundColor = ""; 
-        document.getElementById('sync-title').innerText = `Banco de Dados Online e Sincronizado!`;
+        document.getElementById('sync-dot').classList.remove('error');
+        document.getElementById('sync-title').innerText = `Banco de Dados Sincronizado!`;
         
         let d = new Date();
         let dateStr = d.toLocaleDateString('pt-BR');
         let hr = d.getHours().toString().padStart(2, '0') + ":" + d.getMinutes().toString().padStart(2, '0');
         
-        document.getElementById('sync-desc').innerText = `Última atualização: Hoje às ${hr}`;
+        document.getElementById('sync-desc').innerText = `Última sincronização online: Hoje às ${hr}`;
         document.getElementById('top-update-time').innerHTML = `⏱️ Atualizado: ${dateStr} às ${hr}`;
 
         document.getElementById('count-imp').textContent = dataImp.length;
         document.getElementById('count-op').textContent = dataOp.length;
         setTab('implantação');
-        showToast("✅ Base de dados lida com sucesso!");
+        showToast("✅ Base de dados atualizada e limpa!");
     }
 
     // ==========================================
@@ -352,7 +371,7 @@
             if (cidade) lastCidade = cidade; else cidade = lastCidade;
             if (endereco) lastEndereco = endereco; else endereco = lastEndereco;
             
-            // Trava de segurança extra
+            // Trava de segurança extra (Ignorar Pausados, Cancelados e Vazios)
             let fLow = fase.toLowerCase();
             if (fLow.includes('pausado') || fLow.includes('standy') || fLow.includes('repassad') || fLow.includes('cancelad')) continue;
 
@@ -384,8 +403,8 @@
             if (!row || row.length < 5) continue;
             
             let estado = String(row[0] || "").trim();     // Col A
-            let cidade = String(row[1] || "").trim();     // Col B (CIDADE)
-            let unidade = String(row[2] || "").trim();    // Col C (UNIDADE)
+            let cidade = String(row[1] || "").trim();     // Col B (CIDADE NA OPERAÇÃO)
+            let unidade = String(row[2] || "").trim();    // Col C (UNIDADE NA OPERAÇÃO)
             let franqueado = String(row[9] || "").trim(); // Col J
             let email = String(row[11] || "").trim();     // Col L
             let telefone = String(row[12] || "").trim();  // Col M
@@ -537,7 +556,7 @@
             }));
         } else {
             exportData = currentData.map(d => ({
-                "Cidade": d.local || '', // Coluna C conforme pedido
+                "Cidade": d.local || '', // Coluna C (Nome da unidade / Local)
                 "Franqueado": d.franqueado || '',
                 "E-mail": d.email || '',
                 "Unidade": "Ongoing"
