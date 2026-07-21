@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPS Fast Tennis - Painel Oficial</title>
+    <!-- Bibliotecas para ler CSV (Google Sheets) e Exportar Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link id="dynamic-favicon" rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
+    <style>
+        :root {
+            /* Cores Oficiais Fast Tennis */
+            --primary: #1E46C5;        /* Azul Fast Tennis */
+            --secondary: #122B7A;      /* Azul Secundário/Gradiente */
+            --accent: #19F000;         /* Verde Destaque */
+            --accent-hover: #14C000;   /* Verde Escurecido p/ Hover */
+            --bg: #F4F6FA;             /* Fundo */
+            --card-bg: rgba(255, 255, 255, 0.95); /* Branco com leve transparência */
+            --text-main: #1A1A2E;      /* Texto Escuro */
+            --text-light: #5A5A72;     /* Texto Cinza (baseado no escuro) */
+            --border: #D9D9D9;         /* Cinza Claro */
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        
+        body { 
+            background-color: var(--bg); color: var(--text-main); padding: 20px; 
+            background-size: cover; background-attachment: fixed; background-position: center; transition: 0.5s ease-in-out;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; position: relative; z-index: 2; }
+
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            backdrop-filter: blur(10px); color: white; padding: 24px 30px; border-radius: 12px; margin-bottom: 24px;
+            display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 32px rgba(30, 70, 197, 0.2);
+        }
+        
+        .brand-container { display: flex; align-items: center; gap: 16px; }
+        .logo-box {
+            width: 64px; height: 64px; background: rgba(255,255,255,0.1); border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; border: 2px dashed rgba(255,255,255,0.4); transition: 0.3s;
+        }
+        .logo-box:hover { border-color: var(--accent); background: rgba(255,255,255,0.2);}
+        .logo-box img { width: 100%; height: 100%; object-fit: contain; }
+        .logo-placeholder { font-size: 30px; }
+
+        .header-title h1 { font-size: 26px; margin-bottom: 4px; font-weight: 800; letter-spacing: -0.5px;}
+        .header-title p { font-size: 14px; color: rgba(255,255,255,0.8); font-weight: 500;}
+        .highlight-text { color: var(--accent); }
+
+        .btn-settings {
+            background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.3); color: white; 
+            padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        .btn-settings:hover { background: var(--accent); color: var(--text-main); border-color: var(--accent); }
+
+        /* PAINEL DE SINCRONIZAÇÃO */
+        .sync-panel {
+            background: #FFFFFF; padding: 24px; border-radius: 12px; margin-bottom: 24px;
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+            border-left: 6px solid var(--accent); box-shadow: 0 4px 15px rgba(30, 70, 197, 0.05);
+        }
+        .sync-info h2 { font-size: 18px; color: var(--primary); font-weight: 800; display:flex; align-items:center; gap:8px;}
+        .sync-info p { font-size: 14px; color: var(--text-light); margin-top: 4px;}
+        .status-dot { display: inline-block; width: 10px; height: 10px; background-color: #F59E0B; border-radius: 50%; animation: pulse 1.5s infinite; }
+        .status-dot.online { background-color: var(--accent); animation: none; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .btn-sync {
+            background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px;
+            font-weight: 700; cursor: pointer; transition: 0.2s; border: none; box-shadow: 0 4px 10px rgba(30, 70, 197, 0.2);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .btn-sync:hover { background: var(--secondary); transform: translateY(-2px); }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn {
+            flex: 1; padding: 16px; background: rgba(255, 255, 255, 0.85); border: 2px solid var(--border);
+            border-radius: 10px; font-size: 16px; font-weight: 700; color: var(--text-light); cursor: pointer; transition: 0.2s;
+            min-width: 250px; display: flex; justify-content: center; align-items: center;
+        }
+        .tab-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .tab-btn.active { background: #FFFFFF; border-color: var(--primary); color: var(--primary); box-shadow: 0 4px 12px rgba(30, 70, 197, 0.1);}
+        .badge { background: var(--border); color: var(--text-main); padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;}
+        .tab-btn.active .badge { background: var(--primary); color: white; }
+
+        .filters-panel { background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.02);}
+        .fase-filters { display: none; gap: 12px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+        .btn-fase { flex: 1; min-width: 200px; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; text-align: left; cursor: pointer; transition: 0.2s;}
+        .btn-fase:hover { border-color: var(--primary); }
+        .btn-fase.active { border-color: var(--primary); background: #EAEFFF; box-shadow: 0 4px 10px rgba(30, 70, 197, 0.1);}
+        .btn-fase strong { display: block; font-size: 15px; color: var(--text-main); margin-bottom: 4px; }
+        .btn-fase small { font-size: 12px; color: var(--text-light); }
+
+        .search-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+        .search-item label { display: block; font-size: 12px; font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
+        .search-item input, .search-item select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: #FFFFFF; outline: none; color: var(--text-main);}
+        .search-item input:focus, .search-item select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30, 70, 197, 0.1);}
+
+        .actions-bar {
+            background: rgba(255, 255, 255, 0.9); padding: 16px 20px; border-radius: 12px; border: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        }
+        .action-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+        
+        .btn-export {
+            background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px;
+            font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;
+            box-shadow: 0 4px 10px rgba(30, 70, 197, 0.2);
+        }
+        .btn-export:hover { background: var(--secondary); transform: translateY(-2px); box-shadow: 0 6px 15px rgba(30, 70, 197, 0.3);}
+        .btn-export.special { background: var(--accent); color: var(--text-main); box-shadow: 0 4px 10px rgba(25, 240, 0, 0.3);}
+        .btn-export.special:hover { background: var(--accent-hover); box-shadow: 0 6px 15px rgba(25, 240, 0, 0.4); color: white;}
+        .btn-export.outline { background: white; color: var(--primary); border: 1px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05);}
+        .btn-export.outline:hover { background: var(--primary); color: white; transform: translateY(-2px); }
+
+        .table-container { background: rgba(255, 255, 255, 0.95); border-radius: 12px; border: 1px solid var(--border); overflow-x: auto; max-height: 600px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);}
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #F4F6FA; padding: 14px 16px; text-align: left; position: sticky; top: 0; border-bottom: 2px solid var(--border); font-size: 11px; text-transform: uppercase; z-index: 10; color: var(--primary); font-weight: 800;}
+        td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: #EAEFFF; }
+
+        .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; }
+        .st-fase1 { background: #FFF3CD; color: #D97706; border: 1px solid #FDE68A;}
+        .st-fase2 { background: #DBEAFE; color: #1D4ED8; border: 1px solid #BFDBFE;}
+        .st-op { background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0;}
+
+        .btn-copy-row {
+            background: #F4F6FA; border: 1px solid var(--primary); color: var(--primary);
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; transition: 0.2s;
+        }
+        .btn-copy-row:hover { background: var(--primary); color: white; }
+
+        /* Modal Personalização */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 25, 47, 0.8);
+            backdrop-filter: blur(4px); z-index: 1000; display: none; align-items: center; justify-content: center;
+        }
+        .modal {
+            background: white; padding: 30px; border-radius: 16px; width: 400px; max-width: 90%;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3); border: 2px solid var(--primary);
+        }
+        .modal h2 { margin-bottom: 16px; color: var(--primary); font-size: 20px;}
+        .modal label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 6px; margin-top: 16px; color: var(--text-main);}
+        .modal input[type="file"] { width: 100%; font-size: 13px; padding: 8px; border: 1px dashed var(--primary); border-radius: 6px; background: #F4F6FA; cursor: pointer;}
+        .modal-btns { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end;}
+        .modal-btns button { padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none;}
+        .btn-cancel { background: var(--border); color: var(--text-main); }
+        .btn-save { background: var(--primary); color: white; }
+        .btn-danger { background: #EF4444; color: white; margin-right: auto;}
+
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: var(--text-main);
+            padding: 14px 28px; border-radius: 8px; font-weight: 700; opacity: 0; transition: 0.3s; pointer-events: none; z-index: 9999;
+            box-shadow: 0 10px 30px rgba(25, 240, 0, 0.3); border: 2px solid #FFFFFF;
+        }
+        .toast.show { opacity: 1; transform: translateY(-10px); }
+    
+        .update-badge {
+            background: rgba(0, 0, 0, 0.2);
+            color: #E2E8F0;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="brand-container">
+            <div class="logo-box" onclick="openAuth()" title="Clique para alterar a logo">
+                <div class="logo-placeholder" id="logoPlaceholder">🎾</div>
+                <img id="logoImg" style="display:none;" alt="Logo Fast Tennis">
+            </div>
+            <div class="header-title">
+                <h1>Fast Tennis <span class="highlight-text">• NPS</span></h1>
+                <p>Exportação Oficial de Franqueados</p>
+            </div>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+            <div class="update-badge" id="top-update-time">⏱️ Aguardando...</div>
+            <button class="btn-settings" onclick="openAuth()">⚙️ Personalizar Tema</button>
+        </div>
+
+    </header>
+
+    <!-- SESSÃO DE SINCRONIZAÇÃO AUTOMÁTICA -->
+    <div class="sync-panel">
+        <div class="sync-info">
+            <h2><span id="sync-dot" class="status-dot"></span> <span id="sync-title">Sincronizando Banco de Dados...</span></h2>
+            <p id="sync-desc">Conectando ao Google Drive da Fast Tennis.</p>
+        </div>
+        <button class="btn-sync" onclick="loadGoogleSheetsData()">🔄 Atualizar Agora</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="setTab('implantação')" id="tab-imp">
+            🚀 Implantação <span class="badge" id="count-imp">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('operação')" id="tab-op">
+            🎾 Operação <span class="badge" id="count-op">0</span>
+        </button>
+    </div>
+
+    <div class="filters-panel">
+        <div class="fase-filters" id="fase-filters">
+            <button class="btn-fase" id="btn-fase1" onclick="setFaseFilter('fase1')">
+                <strong>🔍 Fase 1 (1/2)</strong>
+                <small>Negociação e Prospecção</small>
+            </button>
+            <button class="btn-fase" id="btn-fase2" onclick="setFaseFilter('fase2')">
+                <strong>🏗️ Fase 2 (2/2)</strong>
+                <small>Projetos e Em Obra</small>
+            </button>
+            <button class="btn-fase active" id="btn-fase-all" onclick="setFaseFilter('all')">
+                <strong>📋 Todas as Fases</strong>
+                <small>Toda a rede de implantação</small>
+            </button>
+        </div>
+
+        <div class="search-grid">
+            <div class="search-item">
+                <label>🔍 Buscar (Nome, Unidade, Cidade)</label>
+                <input type="text" id="search-input" placeholder="Digite para buscar..." oninput="renderTable()">
+            </div>
+            <div class="search-item">
+                <label>🗺️ Estado (UF)</label>
+                <select id="estado-select" onchange="renderTable()"><option value="">Todos</option></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="actions-bar">
+        <div style="font-size: 14px; font-weight: bold; color: var(--primary);">
+            📊 Exibindo <span id="list-count" style="color: var(--primary); font-size:16px;">0</span> registros
+        </div>
+        <div class="action-btns">
+            <button class="btn-export special" onclick="exportBasePesquisa()">📥 Baixar Base da Pesquisa (.xlsx)</button>
+            <button class="btn-export outline" onclick="copyData('email')">📧 Copiar E-mails</button>
+            <button class="btn-export outline" onclick="copyData('phone')">📞 Copiar Telefones</button>
+            <button class="btn-export outline" onclick="copyData('address')">📍 Copiar Endereços</button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>UF</th>
+                    <th>Unidade / Local</th>
+                    <th>Cidade</th>
+                    <th>Franqueado</th>
+                    <th>E-mail</th>
+                    <th>Telefone</th>
+                    <th style="text-align:center;">Ação Individual</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Personalização -->
+<div class="modal-overlay" id="customModal">
+    <div class="modal">
+        <h2>Personalizar Painel</h2>
+        <p style="font-size:13px; color:var(--text-light); margin-bottom:10px;">Faça upload das imagens oficiais. Elas ficarão salvas no seu navegador local.</p>
+        
+        <label>🖼️ Logo Superior (Recomendado: PNG sem fundo)</label>
+        <input type="file" id="inpLogo" accept="image/*">
+        
+        <label>🌟 Ícone da Aba (Favicon - Recomendado: Quadrado)</label>
+        <input type="file" id="inpFavicon" accept="image/*">
+        
+        <label>🌄 Imagem de Fundo (Background)</label>
+        <input type="file" id="inpBg" accept="image/*">
+
+        <div class="modal-btns">
+            <button class="btn-danger" onclick="resetCustom()">Resetar</button>
+            <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+            <button class="btn-save" onclick="saveCustomizations()">Salvar Tema</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast">Ação realizada com sucesso!</div>
+
+<script>
+    // =========================================================================
+    // LINKS CSV DO GOOGLE SHEETS FORNECIDOS (PUBLICADOS NA WEB)
+    // =========================================================================
+    const URL_IMPLANTACAO = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRksu0DDNfpfwMZx6TTKNwdMR0Yf7ks3VWYV64z-5OPgiE9czUV_l1KGLDcFZC8Q/pub?gid=1910248113&single=true&output=csv";
+    const URL_OPERACAO = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRksu0DDNfpfwMZx6TTKNwdMR0Yf7ks3VWYV64z-5OPgiE9czUV_l1KGLDcFZC8Q/pub?gid=688782685&single=true&output=csv";
+    // =========================================================================
+
+    let dataImp = [];
+    let dataOp = [];
+    let currentTab = 'implantação';
+    let currentFase = 'all'; 
+    let currentData = [];
+
+    window.onload = () => {
+        loadCustomizations();
+        loadGoogleSheetsData();
+    };
+
+    // ==========================================
+    // BUSCA AUTOMÁTICA NO GOOGLE DRIVE
+    // ==========================================
+    async function loadGoogleSheetsData() {
+        document.getElementById('sync-dot').classList.remove('online');
+        document.getElementById('sync-title').innerText = "Sincronizando com o Drive...";
+        document.getElementById('sync-desc').innerText = "Baixando dados mais recentes...";
+
+        try {
+            const [resImp, resOp] = await Promise.all([
+                fetch(URL_IMPLANTACAO),
+                fetch(URL_OPERACAO)
+            ]);
+
+            const csvImp = await resImp.text();
+            const csvOp = await resOp.text();
+
+            Papa.parse(csvImp, {
+                complete: function(results) { parseImplantacao(results.data); }
+            });
+
+            Papa.parse(csvOp, {
+                complete: function(results) { 
+                    parseOperacao(results.data); 
+                    finishSync();
+                }
+            });
+
+        } catch (err) {
+            console.error("Erro ao sincronizar com Google Sheets:", err);
+            document.getElementById('sync-title').innerText = "Erro de Conexão";
+            document.getElementById('sync-desc').innerHTML = "<span style='color:red;'>Não foi possível acessar a planilha. Verifique se os links do Google Sheets estão públicos.</span>";
+        }
+    }
+
+    function finishSync() {
+        document.getElementById('sync-dot').classList.add('online');
+        document.getElementById('sync-title').innerText = "Banco de Dados Online e Sincronizado!";
+        
+        let d = new Date();
+        let dateStr = d.toLocaleDateString('pt-BR');
+        let hr = d.getHours().toString().padStart(2, '0') + ":" + d.getMinutes().toString().padStart(2, '0');
+        
+        document.getElementById('sync-desc').innerText = `Última atualização local: Hoje às ${hr}`;
+        document.getElementById('top-update-time').innerHTML = `⏱️ Atualizado: ${dateStr} às ${hr}`;
+
+        document.getElementById('count-imp').textContent = dataImp.length;
+        document.getElementById('count-op').textContent = dataOp.length;
+        setTab('implantação');
+        showToast("✅ Base de dados atualizada!");
+    }
+
+    function parseImplantacao(rows) {
+        dataImp = [];
+        let lastEstado = "", lastLocal = "", lastCidade = "", lastFase = "", lastEndereco = "";
+        
+        // Pula o cabeçalho
+        for (let i = 2; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length < 5) continue;
+            
+            let fase = String(row[0] || "").trim();
+            let estado = String(row[1] || "").trim();
+            let local = String(row[2] || "").trim();
+            let cidade = String(row[3] || "").trim();
+            let franqueado = String(row[5] || "").trim(); // Col F
+            let email = String(row[6] || "").trim();      // Col G
+            let telefone = String(row[7] || "").trim();   // Col H
+            let endereco = String(row[8] || "").trim();   // Col I
+            
+            if (fase) lastFase = fase; else fase = lastFase;
+            if (estado) lastEstado = estado; else estado = lastEstado;
+            if (local) lastLocal = local; else local = lastLocal;
+            if (cidade) lastCidade = cidade; else cidade = lastCidade;
+            if (endereco) lastEndereco = endereco; else endereco = lastEndereco;
+            
+            if (!franqueado && !email) continue;
+            let fLowTest = franqueado.toLowerCase();
+            if (fLowTest === 'franqueados' || fLowTest === 'nome' || fLowTest === '') continue;
+            
+            let faseNorm = "Em Obra";
+            let fLow = fase.toLowerCase();
+            if (fLow.includes('negoc')) faseNorm = 'Negociação de Ponto';
+            else if (fLow.includes('prospec') || fLow.includes('ponto')) faseNorm = 'Prospecção de Ponto';
+            else if (fLow.includes('projet')) faseNorm = 'Projetos';
+            
+            dataImp.push({ fase_norm: faseNorm, estado: lastEstado, local: lastLocal, cidade: lastCidade, franqueado, email, telefone, endereco: lastEndereco });
+        }
+    }
+
+    function parseOperacao(rows) {
+        dataOp = [];
+        let lastEstado = "", lastCidade = "", lastUnidade = "", lastEndereco = "";
+        
+        // Pula cabeçalho 
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length < 5) continue;
+            
+            let estado = String(row[0] || "").trim();     // Col A
+            let cidade = String(row[1] || "").trim();     // Col B
+            let unidade = String(row[2] || "").trim();    // Col C
+            let franqueado = String(row[9] || "").trim(); // Col J
+            let email = String(row[11] || "").trim();     // Col L
+            let telefone = String(row[12] || "").trim();  // Col M
+            let endereco = String(row[13] || "").trim();  // Col N
+            
+            if (estado) lastEstado = estado; else estado = lastEstado;
+            if (cidade) lastCidade = cidade; else cidade = lastCidade;
+            if (unidade) lastUnidade = unidade; else unidade = lastUnidade;
+            if (endereco) lastEndereco = endereco; else endereco = lastEndereco;
+            
+            let franqueadoLow = franqueado.toLowerCase();
+            if (franqueadoLow === 'nome do franqueado' || franqueadoLow === 'cargos' || franqueadoLow === 'franqueado' || franqueadoLow === '') continue;
+            if (!franqueado && !email) continue;
+            
+            dataOp.push({
+                fase_norm: "Operação",
+                estado: lastEstado,
+                cidade: lastUnidade,  // APLICADO O PEDIDO: Cidade com o nome da Unidade (Coluna C)
+                local: lastUnidade,
+                franqueado, email, telefone, endereco: lastEndereco
+            });
+        }
+    }
+
+    // ==========================================
+    // PERSONALIZAÇÃO COM SENHA (FAST)
+    // ==========================================
+    function openAuth() {
+        const pwd = prompt("Digite a senha para personalizar o layout:");
+        if (pwd === "fast" || pwd === "FAST" || pwd === "Fast") {
+            document.getElementById('customModal').style.display = 'flex';
+        } else if (pwd !== null) {
+            alert("Senha incorreta!");
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('customModal').style.display = 'none';
+        document.getElementById('inpLogo').value = '';
+        document.getElementById('inpFavicon').value = '';
+        document.getElementById('inpBg').value = '';
+    }
+
+    function saveImageToLocal(inputId, key, callback) {
+        const file = document.getElementById(inputId).files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                localStorage.setItem(key, e.target.result);
+                if(callback) callback(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function saveCustomizations() {
+        saveImageToLocal('inpLogo', 'ft_logo', applyLogo);
+        saveImageToLocal('inpFavicon', 'ft_favicon', applyFavicon);
+        saveImageToLocal('inpBg', 'ft_bg', applyBg);
+        showToast("🎨 Tema personalizado salvo no navegador!");
+        closeModal();
+    }
+
+    function resetCustom() {
+        if(confirm("Deseja remover todas as personalizações?")) {
+            localStorage.removeItem('ft_logo');
+            localStorage.removeItem('ft_favicon');
+            localStorage.removeItem('ft_bg');
+            applyLogo(null); applyFavicon(null); applyBg(null);
+            closeModal();
+            showToast("🧹 Tema restaurado para o padrão.");
+        }
+    }
+
+    function loadCustomizations() {
+        applyLogo(localStorage.getItem('ft_logo'));
+        applyFavicon(localStorage.getItem('ft_favicon'));
+        applyBg(localStorage.getItem('ft_bg'));
+    }
+
+    function applyLogo(src) {
+        const img = document.getElementById('logoImg');
+        const ph = document.getElementById('logoPlaceholder');
+        if (src) { img.src = src; img.style.display = 'block'; ph.style.display = 'none'; } 
+        else { img.style.display = 'none'; ph.style.display = 'block'; }
+    }
+
+    function applyFavicon(src) {
+        if (src) document.getElementById('dynamic-favicon').href = src;
+        else document.getElementById('dynamic-favicon').href = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    }
+
+    function applyBg(src) {
+        if (src) document.body.style.backgroundImage = `url(${src})`;
+        else document.body.style.backgroundImage = "none";
+    }
+
+    // ==========================================
+    // LÓGICA DE ABAS E TABELAS
+    // ==========================================
+    function setTab(tab) {
+        currentTab = tab;
+        document.getElementById('tab-imp').classList.toggle('active', tab === 'implantação');
+        document.getElementById('tab-op').classList.toggle('active', tab === 'operação');
+        
+        document.getElementById('fase-filters').style.display = tab === 'implantação' ? 'flex' : 'none';
+        document.getElementById('search-input').value = '';
+        currentFase = 'all';
+        updateFaseButtons();
+        
+        populateEstados();
+        renderTable();
+    }
+
+    function setFaseFilter(fase) {
+        currentFase = fase;
+        updateFaseButtons();
+        renderTable();
+    }
+
+    function updateFaseButtons() {
+        document.getElementById('btn-fase1').classList.toggle('active', currentFase === 'fase1');
+        document.getElementById('btn-fase2').classList.toggle('active', currentFase === 'fase2');
+        document.getElementById('btn-fase-all').classList.toggle('active', currentFase === 'all');
+    }
+
+    function populateEstados() {
+        const dataset = currentTab === 'implantação' ? dataImp : dataOp;
+        const estados = [...new Set(dataset.map(d => d.estado))].filter(Boolean).sort();
+        const select = document.getElementById('estado-select');
+        select.innerHTML = '<option value="">Todos</option>' + estados.map(e => `<option value="${e}">${e}</option>`).join('');
+    }
+
+    function getFaseCategoria(faseNorm) {
+        if (faseNorm === 'Negociação de Ponto' || faseNorm === 'Prospecção de Ponto') return 'fase1';
+        return 'fase2'; 
+    }
+
+    function getFaseLabel(faseNorm) {
+        return getFaseCategoria(faseNorm) === 'fase1' ? '1/2' : '2/2';
+    }
+
+    function renderTable() {
+        const dataset = currentTab === 'implantação' ? dataImp : dataOp;
+        const search = document.getElementById('search-input').value.toLowerCase();
+        const estado = document.getElementById('estado-select').value;
+
+        currentData = dataset.filter(item => {
+            const textMatch = !search || 
+                (item.franqueado || '').toLowerCase().includes(search) ||
+                (item.local || '').toLowerCase().includes(search) ||
+                (item.cidade || '').toLowerCase().includes(search);
+            
+            const estadoMatch = !estado || item.estado === estado;
+
+            let faseMatch = true;
+            if (currentTab === 'implantação' && currentFase !== 'all') {
+                faseMatch = getFaseCategoria(item.fase_norm) === currentFase;
+            }
+
+            return textMatch && estadoMatch && faseMatch;
+        });
+
+        document.getElementById('list-count').textContent = currentData.length;
+
+        const tbody = document.getElementById('table-body');
+        if (currentData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px; font-weight:bold; color:var(--text-light);">Aguardando dados ou nenhum registro encontrado.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = currentData.map((item, idx) => {
+            let badgeClass = 'st-op';
+            if (currentTab === 'implantação') {
+                badgeClass = getFaseCategoria(item.fase_norm) === 'fase1' ? 'st-fase1' : 'st-fase2';
+            }
+
+            return `
+                <tr>
+                    <td><span class="status-badge ${badgeClass}">${item.fase_norm || 'Ativo'}</span></td>
+                    <td><strong>${item.estado || '-'}</strong></td>
+                    <td>${item.local || '-'}</td>
+                    <td>${item.cidade || '-'}</td>
+                    <td><strong>${item.franqueado || '-'}</strong></td>
+                    <td>${item.email || '-'}</td>
+                    <td>${item.telefone || '-'}</td>
+                    <td style="text-align:center;">
+                        <button class="btn-copy-row" onclick="copyRow(${idx})" title="Copiar p/ Excel">📋 Copiar</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // ==========================================
+    // EXPORTAÇÃO XLSX & COPIAR/COLAR
+    // ==========================================
+    function exportBasePesquisa() {
+        if (currentData.length === 0) {
+            showToast('Nenhum dado para exportar. Aguarde a sincronização.');
+            return;
+        }
+
+        let exportData = [];
+
+        if (currentTab === 'implantação') {
+            exportData = currentData.map(d => ({
+                "Nome": d.franqueado || '',
+                "E-mail": d.email || '',
+                "Fase": getFaseLabel(d.fase_norm),
+                "Unidade": "Onboarding"
+            }));
+        } else {
+            exportData = currentData.map(d => ({
+                "Cidade": d.cidade || '',
+                "Franqueado": d.franqueado || '',
+                "E-mail": d.email || '',
+                "Unidade": "Ongoing"
+            }));
+        }
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Base_NPS");
+        
+        let faseName = currentFase === 'all' ? 'TodasFases' : (currentFase === 'fase1' ? 'Fase1' : 'Fase2');
+        let filename = currentTab === 'implantação' 
+            ? `Base_Pesquisa_Implantacao_${faseName}.xlsx` 
+            : `Base_Pesquisa_Operacao.xlsx`;
+
+        XLSX.writeFile(wb, filename);
+        showToast('📥 Arquivo Excel (XLSX) gerado com sucesso!');
+    }
+
+    function copyRow(idx) {
+        const d = currentData[idx];
+        let text = "";
+
+        if (currentTab === 'implantação') {
+            text = `${d.franqueado || ''}\t${d.email || ''}\t${getFaseLabel(d.fase_norm)}\tOnboarding`;
+        } else {
+            text = `${d.cidade || ''}\t${d.franqueado || ''}\t${d.email || ''}\tOngoing`;
+        }
+
+        navigator.clipboard.writeText(text).then(() => {
+            showToast(`✅ Linha copiada! Use Ctrl+V no Excel.`);
+        });
+    }
+
+    function copyData(type) {
+        if (currentData.length === 0) {
+            showToast('Nenhum dado para copiar. Aguarde a sincronização.');
+            return;
+        }
+
+        let lines = [];
+        if (type === 'email') {
+            lines = currentData.filter(d => d.email).map(d => `${d.franqueado}\t${d.email.trim()}`);
+        } else if (type === 'phone') {
+            lines = currentData.filter(d => d.telefone && d.telefone !== '-').map(d => `${d.franqueado}\t${d.telefone.trim()}`);
+        } else if (type === 'address') {
+            lines = currentData.map(d => `${d.local || 'Unidade'}\t${d.endereco || 'Sem endereço'}`);
+        }
+
+        if (lines.length > 0) {
+            navigator.clipboard.writeText(lines.join('\n')).then(() => {
+                showToast(`✅ ${lines.length} itens copiados! Use Ctrl+V no Excel.`);
+            });
+        }
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+</script>
+
+</body>
+</html>
