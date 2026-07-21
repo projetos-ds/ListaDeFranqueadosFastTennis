@@ -49,7 +49,6 @@
         }
         .logo-box:hover { opacity: 0.8; }
         .logo-box img { height: 100%; width: auto; object-fit: contain; }
-        .logo-placeholder { font-size: 30px; }
 
         .header-title h1 { font-size: 26px; margin-bottom: 4px; font-weight: 800; letter-spacing: -0.5px;}
         .header-title p { font-size: 14px; color: rgba(255,255,255,0.8); font-weight: 500;}
@@ -272,7 +271,7 @@
     async function loadGoogleSheetsData() {
         document.getElementById('sync-dot').classList.remove('online', 'error');
         document.getElementById('sync-title').innerText = "Sincronizando com o Drive...";
-        document.getElementById('sync-desc').innerText = "Conectando ao servidor CSV do Google Sheets...";
+        document.getElementById('sync-desc').innerText = "Conectando ao servidor oficial do Google Sheets...";
 
         try {
             const ts = new Date().getTime(); // Evita cache
@@ -492,7 +491,7 @@
                     <td class="copyable" onclick="copyText('${item.email}', 'E-mail')" title="Clique para copiar este E-mail">${item.email || '-'}</td>
                     <td class="copyable" onclick="copyText('${item.telefone}', 'Telefone')" title="Clique para copiar este Telefone">${item.telefone || '-'}</td>
                     <td style="text-align:center;">
-                        <button class="btn-copy-row" onclick="copyRow(${idx})" title="Copiar Formato do Excel">📋 Copiar Linha</button>
+                        <button class="btn-copy-row" onclick="copyRow(${idx})" title="Copiar Linha p/ Excel">📋 Copiar Linha</button>
                     </td>
                 </tr>
             `;
@@ -555,10 +554,10 @@
 
         if (currentTab === 'implantação') {
             // Nome do franqueado, cidade, telefone e email
-            text = `${d.franqueado || ''}\t${d.cidade || ''}\t${d.telefone || ''}\t${d.email || ''}`;
+            text = `${d.franqueado || '-'}\t${d.cidade || '-'}\t${d.telefone || '-'}\t${d.email || '-'}`;
         } else {
             // nome da unidade, telefone, endereço, email e nome do franqueado
-            text = `${d.local || ''}\t${d.telefone || ''}\t${d.endereco || ''}\t${d.email || ''}\t${d.franqueado || ''}`;
+            text = `${d.local || '-'}\t${d.telefone || '-'}\t${d.endereco || '-'}\t${d.email || '-'}\t${d.franqueado || '-'}`;
         }
 
         navigator.clipboard.writeText(text).then(() => {
@@ -580,15 +579,22 @@
         } else if (type === 'address') {
             lines = currentData.map(d => {
                 let localName = d.local || 'Unidade';
-                if (!localName.toLowerCase().includes('fast tennis')) localName = 'Fast Tennis ' + localName;
-                return `🎾 ${localName}\n${d.cidade || ''}/${d.estado || ''}\n${d.endereco || 'Sem endereço'}`;
+                if (!localName.toLowerCase().includes('fast tennis')) {
+                    localName = 'Fast Tennis ' + localName;
+                }
+                
+                let cidadeInfo = d.cidade ? `${d.cidade}` : '';
+                let estadoInfo = d.estado ? ` / ${d.estado}` : '';
+                let endInfo = (d.endereco && d.endereco !== '-') ? d.endereco : 'Endereço não informado';
+                
+                return `🎾 ${localName}\n🏙️ ${cidadeInfo}${estadoInfo}\n📍 ${endInfo}`;
             });
         }
 
         if (lines.length > 0) {
             let joinChar = type === 'address' ? '\n\n' : '\n';
             navigator.clipboard.writeText(lines.join(joinChar)).then(() => {
-                showToast(`✅ ${lines.length} itens copiados! Use Ctrl+V no Excel.`);
+                showToast(`✅ ${lines.length} itens copiados!`);
             });
         }
     }
